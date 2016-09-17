@@ -1,0 +1,115 @@
+* ns-graph
+
+  [[https://clojars.org/ns-graph][https://clojars.org/ns-graph/latest-version.svg]]
+
+  Ns-graph is a Leiningen/Boot plugin for drawing the dependencies between your
+  Clojure namespaces and Java classes as a single graph. Example:
+
+  [[doc/graph_example.png]]
+
+  Certified Usecases™ (= things I did with it at least once):
+
+  - Explore the architecture of an existing project you just start to work with.
+  - Understand parts to be refactored when you need to remove a dependency.
+  - Identify high-degree dependency nodes.
+  - Track rogue connections between namespaces.
+  - Marvel at the beauty of your project from a bird's-eye view.
+
+  Beyond simple graphing, ns-graph can also:
+
+  - Process both Clojure and Java files.
+  - Include and exclude certain namespaces and classes by mask.
+  - Abbreviate the package names by first letters.
+  - Differently color the project's own files apart from external dependencies.
+
+** Requirements
+
+   - [[http://www.graphviz.org/][Graphviz]] must be installed.
+   - Either [[http://leiningen.org/][Leiningen]] or [[boot-clj.com][Boot]] must be present.
+
+** Usage
+
+*** One-liner (with Boot)
+
+    Navigate to the project and execute:
+
+    : boot -d ns-graph draw -s src/
+
+    This will create a file =graph.png= in your current directory.
+
+    You can view all available options with =boot -d ns-graph draw -h=. Here are
+    a few that need a description:
+
+    - =-s, --source-paths PATH= --- you can specify multiple paths to source
+      files by writing =-s PATH= for each path.
+    - =-f, --format VAL= --- can be either =png= or =svg=.
+    - =-x, --exclude MASK= --- don't draw a certain namespace/class or a group
+      of them (if mask is used). The only type of masks supported is a string
+      with wildcard in the end (e.g. =java.*=). Multiple exclusions can be
+      specified by providing =-x MASK= several times.
+    - =-i, --include MASK= --- opposite to =-x=, explicitly include certain
+      namespaces/classes. Has higher priority than =-x=.
+    - =-t, --title VAL= --- can be one of =name=, =name-and-opts=,
+      =name-and-pprint-opts=. Customizes what the graph title (bottom label)
+      will contain.
+    - =-o, --only-own= --- draw only namespaces/classes that were found in
+      source paths.
+    - =-a, --abbrev-ns= --- abbreviate the package part of the names. E.g.
+      =clojure.core.async= becomes =c.c.async=.
+    - =-c, --cluster-lang= --- draw Clojure and Java files in two separate
+      subgraph clusters.
+    - =-v, --view BIN= --- don't produce the output file, but show the resulting
+      image with the BIN application.
+    - =--debug= --- save the =.dot= file alongside the image.
+
+*** As a task in Boot
+
+    Put the following into your =build.boot=:
+
+    #+BEGIN_SRC clojure
+(set-env! ...
+          :dependencies '[...
+                          [ns-graph "x.y.z"]])
+
+(require '[ns-graph :refer [draw]])
+
+(task-options!
+ draw {:name "My project"
+       :abbrev-ns true
+       :source-paths (get-env :source-paths)
+       :exclude ["java.*" "clojure.*"]})
+    #+END_SRC
+
+    You can also compose it with another tasks:
+
+    #+BEGIN_SRC clojure
+(comp (draw :name "My project" ...) ...)
+    #+END_SRC
+
+    Names of the options are the same as the long names in the [[#one-liner-with-boot][shell command]].
+
+*** As a Leiningen plugin.
+
+    #+BEGIN_SRC clojure
+    (defproject myproject "..."
+      ...
+      :plugins [ns-graph "x.y.z"]
+      ...
+      :ns-graph {:name "My project"
+                 :abbrev-ns true
+                 :source-paths (get-env :source-paths)
+                 :exclude ["java.*" "clojure.*"]})
+    #+END_SRC
+
+    Names of the options are the same as the long names in the [[#one-liner-with-boot][shell command]].
+
+    Finally execute =lein ns-graph= from your project's directory.
+
+*** As a library
+
+    Call [[https://github.com/alexander-yakushev/ns-graph/blob/master/src/ns_graph/core.clj#L232][ns-graph.core/depgraph*]] function with the map of options.
+
+** License
+
+   Copyright © 2016 Alexander Yakushev. Distributed under the Eclipse Public
+   License, the same as Clojure. See [[LICENSE][LICENSE]].
