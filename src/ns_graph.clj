@@ -9,10 +9,9 @@
 (deftask draw
   "Generate a namespace dependecy graph."
   [s source-paths   PATH #{str} "Directories where to look for sources."
-   d dest-dir       PATH str    "Where to save the resulting file."
    f format         VAL  str    "Format of the resulting image."
    n name           VAL  str    "Name to show in the graph title."
-   l filename       VAL  str    "Name of the image file (without the extension)."
+   l filename       VAL  str    "Name and path to the file (without the extension)."
    x exclude        MASK #{str} "Namespaces/classes or masks to exclude from the graph."
    i include        MASK #{str} "Namespaces/classes or masks to additionally include in the graph."
    t title          VAL  kw     "Type of the graph title."

@@ -205,7 +205,6 @@
    :name "Default graph"
    :format "png"
    :filename "graph"
-   :dest-dir "./"
    :view nil})
 
 (def ^:private default-interesting-opts
@@ -232,8 +231,7 @@
 (defn depgraph*
   "Function that generates a namespace dependency graph given the map of options."
   [opts]
-  (let [{:keys [source-paths dest-dir format filename debug view include exclude only-own]
-         :or {dest-dir "./", format "png", filename "graph"}
+  (let [{:keys [source-paths format filename debug view include exclude only-own]
          :as opts} (merge default-boring-opts default-interesting-opts opts)
         source-paths (if (coll? source-paths) source-paths [source-paths])
         imgfile (if view
