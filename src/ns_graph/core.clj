@@ -123,11 +123,15 @@
 (defn short-name [classname]
   (second (re-matches #".*\.(.+)" (name classname))))
 
-(defn abbrev-name [string]
+(defn abbrev-name
+  "Abbreviate a dot- and dash- separated string by first letter. Leave the last
+  part intact unless `abbr-last` is true."
+  [string & [abbr-last]]
   (let [parts (partition-by #{\. \-} string)]
-    (-> (map first (butlast parts))
-        (concat (last parts))
-        str/join)))
+    (str/join
+     (if abbr-last
+       (map first parts)
+       (concat (map first (butlast parts)) (last parts))))))
 
 #_(abbrev-name "clojure.common.utils")
 #_(abbrev-name "clojure.dashed-name.foo.bar")
@@ -165,12 +169,16 @@
   [{:keys [namespaces classes links]} title include? own?
    {:keys [default-color own-color abbrev-ns cluster-lang ns-shape class-shape]}]
   (let [clojure-nodes (for [x namespaces :when (include? x)]
-                        [(keyword x) {:label (if abbrev-ns
+                        [(keyword x) {:label (if (and abbrev-ns (own? x))
                                                (abbrev-name (str x)) (str x))
                                       :shape ns-shape
                                       :color (if (own? x) own-color default-color)}])
         java-nodes (for [[package classes] classes
-                         :let [color (if (own? (first classes)) own-color default-color)
+                         :let [own (own? (first classes))
+                               package-label (if (and abbrev-ns own)
+                                               (abbrev-name package true)
+                                               package)
+                               color (if own own-color default-color)
                                classes-nodes
                                (for [x classes :when (include? x)]
                                  [(keyword x) {:label (short-name x)
@@ -178,7 +186,8 @@
                                                :color color}])]
                          :when (seq classes-nodes)]
                      (dot/subgraph (str "cluster_" (safe-name package))
-                                   (cons {:label package, :color color} classes-nodes)))
+                                   (cons {:label package-label,
+                                          :color color} classes-nodes)))
         edges (for [[from to] links
                     :when (and (include? from) (include? to))]
                 [(keyword from) :> (keyword to)])]
