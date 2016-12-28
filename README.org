@@ -107,7 +107,7 @@
 
 *** As a library
 
-    Call [[https://github.com/alexander-yakushev/ns-graph/blob/master/src/ns_graph/core.clj#L232][ns-graph.core/depgraph*]] function with the map of options.
+    Call [[https://github.com/alexander-yakushev/ns-graph/blob/cfc7079e037c204d50c951981e0c822d0cf02f25/src/ns_graph/core.clj#L240][ns-graph.core/depgraph*]] function with the map of options.
 
 ** License
 
