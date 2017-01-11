@@ -60,6 +60,7 @@
       subgraph clusters.
     - =-v, --view BIN= --- don't produce the output file, but show the resulting
       image with the BIN application.
+    - =-g, --target VAL= --- can be either =:clj= or =:cljs=.
     - =--debug= --- save the =.dot= file alongside the image.
 
 *** As a task in Boot

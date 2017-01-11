@@ -19,6 +19,7 @@
    a abbrev-ns           bool   "Abbreviate all but one parts of the namespace/package."
    c cluster-lang        bool   "Draw namespaces and classes in two separate clusters."
    v view           BIN  str    "Don't save the image, but open it with the provided BIN."
+   g target         VAL  kw     "Target language(:clj, :cljs) of the graph."
 
    _ debug               bool   "Save the .dot file alongside the image file."
    _ no-color            bool   "Don't use separate colors for own and foreign elements."
