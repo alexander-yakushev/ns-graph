@@ -93,6 +93,14 @@
 
 #_(parse-java-file "/home/unlogic/projects/android/Abalone/src/com/bytopia/abalone/BoardRenderer.java" [])
 
+(defn parse-clojurescript-file [f include?]
+  (when-let [[_ ns :as ns-form] (read-ns f)]
+    (when (include? ns)
+      {:name ns
+       :type :clojurescript
+       :clojurescript-depends (concat (parse-ns-subform ns-form :require)
+                                      (parse-ns-subform ns-form :use))})))
+
 (defn all-clojure-files [root]
   (->> (file-seq (io/file root))
        (filter #(.endsWith (str %) ".clj"))))
@@ -105,7 +113,11 @@
 
 #_(all-java-files  "/home/unlogic/projects/android/Abalone/")
 
-(defn parse-directories
+(defn all-clojurescript-files [root]
+  (->> (file-seq (io/file root))
+       (filter #(.endsWith (str %) ".cljs"))))
+
+(defn parse-clj-and-java-directories
   "Find all Java and Clojure sources in the given `dirs` and returns a list of
   parsed structure for each file. Include only namespaces and classes which pass
   `include?` predicate."
@@ -114,6 +126,21 @@
             (concat (keep #(parse-clojure-file % include?) (all-clojure-files dir))
                     (keep #(parse-java-file % include?) (all-java-files dir))))
           dirs))
+
+(defn parse-cljs-directories
+  "Find all ClojureScript sources in the given `dirs` and returns a list of
+  parsed structure for each file. Include only namespaces which pass
+  `include?` predicate."
+  [dirs include?]
+  (mapcat (fn [dir]
+            (keep #(parse-clojurescript-file % include?) (all-clojurescript-files dir)))
+          dirs))
+
+(defn parse-directories [dirs include? target]
+  (case target
+    :clj (parse-clj-and-java-directories dirs include?)
+    :cljs (parse-cljs-directories dirs include?)
+    (parse-clj-and-java-directories dirs include?)))
 
 #_(parse-directories ["/home/unlogic/clojure/cider-nrepl/"] [])
 
@@ -137,7 +164,7 @@
 #_(abbrev-name "clojure.dashed-name.foo.bar")
 #_(abbrev-name "clojure.dashed-name.foo.baz-qux")
 
-(defn parsed-files->graph-data [parsed-files]
+(defn parsed-clj-and-java-files->graph-data [parsed-files]
   {:namespaces (set
                 (concat (keep #(when (= (:type %) :clojure) (:name %)) parsed-files)
                         (mapcat :clojure-depends parsed-files)))
@@ -150,6 +177,21 @@
            (for [file parsed-files
                  dep (concat (:java-depends file) (:clojure-depends file))]
              [(:name file) dep]))})
+
+(defn parsed-cljs-files->graph-data [parsed-files]
+  {:namespaces (set
+                (concat (keep #(when (= (:type %) :clojurescript) (:name %)) parsed-files)
+                        (mapcat :clojurescript-depends parsed-files)))
+   :links (set
+           (for [file parsed-files
+                 dep (:clojurescript-depends file)]
+             [(:name file) dep]))})
+
+(defn parsed-files->graph-data [parsed-files target]
+  (case target
+    :clj (parsed-clj-and-java-files->graph-data parsed-files)
+    :cljs (parsed-cljs-files->graph-data parsed-files)
+    (parsed-clj-and-java-files->graph-data parsed-files)))
 
 #_(time (parsed-files->graph-data (parse-directories ["/home/unlogic/clojure/cider-nrepl/"] (constantly true))))
 
@@ -220,7 +262,8 @@
   {:abbrev-ns false
    :no-color false
    :only-own false
-   :cluster-lang false})
+   :cluster-lang false
+   :target :clj})
 
 (defn graph-title
   "Returns a string for the graph caption that contains the name, and possibly
@@ -240,7 +283,7 @@
 (defn depgraph*
   "Function that generates a namespace dependency graph given the map of options."
   [opts]
-  (let [{:keys [source-paths format filename debug view include exclude only-own]
+  (let [{:keys [source-paths format filename debug view include exclude only-own target]
          :as opts} (merge default-boring-opts default-interesting-opts opts)
         source-paths (if (coll? source-paths) source-paths [source-paths])
         imgfile (if view
@@ -250,8 +293,8 @@
                    (or (some (partial matches? ns) include)
                        (not-any? (partial matches? ns) exclude)))
 
-        all-files (parse-directories source-paths include?)
-        graph-data (parsed-files->graph-data all-files)
+        all-files (parse-directories source-paths include? target)
+        graph-data (parsed-files->graph-data all-files target)
         ;; Set of all processed files is a predicate to check if a file is from
         ;; own project.
         own? (set (map :name all-files))
