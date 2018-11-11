@@ -5,7 +5,7 @@
 
 (task-options!
  pom {:project     'ns-graph
-      :version     "0.1.2"
+      :version     "0.1.3"
       :description "Library for charting dependencies between namespaces and classes."
       :url         "https://github.com/alexander-yakushev/ns-graph"
       :scm         {:url "https://github.com/alexander-yakushev/ns-graph"}
