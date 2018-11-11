@@ -12,5 +12,5 @@
       :license     {"EPL" "http://www.eclipse.org/legal/epl-v10.html"}}
  push {:repo "clojars"})
 
-(deftask deploy []
-  (comp (pom) (jar) (target) (push)))
+(deftask build []
+  (comp (pom) (jar)))

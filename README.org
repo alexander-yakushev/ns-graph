@@ -54,6 +54,7 @@
       will contain.
     - =-o, --only-own= --- draw only namespaces/classes that were found in
       source paths.
+    - =-p, --only-packages= --- draw only Java packages instead of classes.
     - =-a, --abbrev-ns= --- abbreviate the package part of the names. E.g.
       =clojure.core.async= becomes =c.c.async=.
     - =-c, --cluster-lang= --- draw Clojure and Java files in two separate
