@@ -16,6 +16,7 @@
    i include        MASK #{str} "Namespaces/classes or masks to additionally include in the graph."
    t title          VAL  kw     "Type of the graph title."
    o only-own            bool   "Draw only namespaces and classes from this project."
+   p only-packages       bool   "Draw only the containing packages for used Java classes."
    a abbrev-ns           bool   "Abbreviate all but one parts of the namespace/package."
    c cluster-lang        bool   "Draw namespaces and classes in two separate clusters."
    v view           BIN  str    "Don't save the image, but open it with the provided BIN."

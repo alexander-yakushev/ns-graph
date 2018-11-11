@@ -54,7 +54,7 @@
                                 (parse-ns-subform ns-form :use))
        :java-depends (parse-ns-subform ns-form :import)})))
 
-#_(parse-clojure-file "/home/unlogic/clojure/android/neko/src/clojure/neko/ui/menu.clj" [])
+#_(parse-clojure-file "/Users/alex/clojure/android/neko/src/clojure/neko/ui/menu.clj" any?)
 
 (defn java-get-classname [short-filename content-lines]
   (let [[_ package] (some #(re-find #"package\s+([\w\._]*)\s*;" %) content-lines)
@@ -68,10 +68,7 @@
          imports []]
     (if line
       (cond (.startsWith (.trim line) "import")
-            (let [[_ import] (re-find #"import\s+([\w_\.\*]+);" line)
-                  import (if (.endsWith import ".*")
-                           (second (re-matches #"(.+)\.\*" import))
-                           import)]
+            (let [[_ import] (re-find #"import\s+([\w_\.\*]+);" line)]
               (recur r (conj imports (symbol import))))
 
             (re-matches #"\s*class\s+[\w_]+" line)
@@ -91,7 +88,7 @@
        :clojure-depends []
        :java-depends (java-get-imports contents)})))
 
-#_(parse-java-file "/home/unlogic/projects/android/Abalone/src/com/bytopia/abalone/BoardRenderer.java" [])
+#_(parse-java-file "/Users/alex/projects/android/Abalone/src/com/bytopia/abalone/BoardRenderer.java" any?)
 
 (defn all-clojure-files [root]
   (->> (file-seq (io/file root))
@@ -115,7 +112,7 @@
                     (keep #(parse-java-file % include?) (all-java-files dir))))
           dirs))
 
-#_(parse-directories ["/home/unlogic/clojure/cider-nrepl/"] [])
+#_(parse-directories ["/Users/alex/clojure/cider-nrepl/"] any?)
 
 (defn class-package [classname]
   (second (re-matches #"(.*)\..+" (name classname))))
@@ -137,21 +134,65 @@
 #_(abbrev-name "clojure.dashed-name.foo.bar")
 #_(abbrev-name "clojure.dashed-name.foo.baz-qux")
 
-(defn parsed-files->graph-data [parsed-files]
+(defn compress-java-dependencies-to-packages
+  "For case when `only-packages` is enabled, rewrite the parsed data so that only
+  Java packages and links between them remain."
+  [parsed-files]
+  (let [;; Step 1: rewrite all Java class names to packages.
+        parsed-files (mapv (fn [{:keys [name type] :as parsed-file}]
+                             (if (= type :java)
+                               (assoc parsed-file
+                                      :name (symbol (class-package name))
+                                      :type :java-package)
+                               parsed-file))
+                           parsed-files)
+        ;; Step 2: find same Java packages and merge them.
+        parsed-files (->> parsed-files
+                          (group-by (juxt :type :name))
+                          (mapv (fn [[[type name] files]]
+                                  (if (= type :java-package)
+                                    {:name name
+                                     :type type
+                                     :clojure-depends (vec (distinct (apply concat (map :clojure-depends files))))
+                                     :java-depends (vec (distinct (apply concat (map :java-depends files))))}
+                                    (first files)))))
+        ;; Step 3: replace Java dependencies everywhere with package names.
+        parsed-files (mapv (fn [parsed-file]
+                             (update-in parsed-file [:java-depends]
+                                        #(vec (distinct (map (comp symbol class-package) %)))))
+                           parsed-files)]
+    parsed-files))
+
+#_(parse-directories ["/Users/alex/clojure/cider-nrepl/src/"] any?)
+
+(defn parsed-files->graph-data [parsed-files only-packages]
   {:namespaces (set
                 (concat (keep #(when (= (:type %) :clojure) (:name %)) parsed-files)
                         (mapcat :clojure-depends parsed-files)))
-   :classes (->> (concat (keep #(when (= (:type %) :java) (:name %))
-                               parsed-files)
-                         (mapcat :java-depends parsed-files))
-                 distinct
-                 (group-by class-package))
+   :classes (if only-packages
+              []
+              (->> (concat (keep #(when (= (:type %) :java) (:name %))
+                                 parsed-files)
+                           (mapcat :java-depends parsed-files))
+                   distinct
+                   (group-by class-package)))
+   :packages (if only-packages
+               (set
+                (->> (concat (keep #(when (= (:type %) :java-package) (:name %))
+                                   parsed-files)
+                             (mapcat :java-depends parsed-files))
+                     distinct))
+               [])
    :links (set
-           (for [file parsed-files
-                 dep (concat (:java-depends file) (:clojure-depends file))]
-             [(:name file) dep]))})
+           (->> (for [{:keys [name type clojure-depends java-depends]} parsed-files]
+                  (concat (for [dep clojure-depends]
+                            [[name type] [dep :clojure]])
+                          (for [dep java-depends]
+                            [[name type] [dep :java]])))
+                (apply concat)
+                set))})
 
-#_(time (parsed-files->graph-data (parse-directories ["/home/unlogic/clojure/cider-nrepl/"] (constantly true))))
+#_(time (parsed-files->graph-data (parse-directories ["/Users/alex/clojure/cider-nrepl/"] any?) true))
 
 #_(generate-graph (parsed-files->graph-data (parse-directory "/home/unlogic/clojure/cider-nrepl/" [])) false)
 
@@ -166,31 +207,46 @@
 
 (defn generate-graph
   "Given graph data, generates almost final DOT-file representation."
-  [{:keys [namespaces classes links]} title include? own?
+  [{:keys [namespaces classes packages links]} title include? own?
    {:keys [default-color own-color abbrev-ns cluster-lang ns-shape class-shape]}]
   (let [clojure-nodes (for [x namespaces :when (include? x)]
-                        [(keyword x) {:label (if (and abbrev-ns (own? x))
-                                               (abbrev-name (str x)) (str x))
-                                      :shape ns-shape
-                                      :color (if (own? x) own-color default-color)}])
-        java-nodes (for [[package classes] classes
-                         :let [own (own? (first classes))
-                               package-label (if (and abbrev-ns own)
-                                               (abbrev-name package true)
-                                               package)
-                               color (if own own-color default-color)
-                               classes-nodes
-                               (for [x classes :when (include? x)]
-                                 [(keyword x) {:label (short-name x)
-                                               :shape class-shape
-                                               :color color}])]
-                         :when (seq classes-nodes)]
-                     (dot/subgraph (str "cluster_" (safe-name package))
-                                   (cons {:label package-label,
-                                          :color color} classes-nodes)))
-        edges (for [[from to] links
-                    :when (and (include? from) (include? to))]
-                [(keyword from) :> (keyword to)])]
+                        [(keyword (str "clj_" x))
+                         {:label (if (and abbrev-ns (own? x))
+                                   (abbrev-name (str x)) (str x))
+                          :shape ns-shape
+                          :color (if (own? x) own-color default-color)}])
+        java-nodes (concat
+                    (for [[package classes] classes
+                          :let [own (own? (first classes))
+                                package-label (if (and abbrev-ns own)
+                                                (abbrev-name package true)
+                                                package)
+                                color (if own own-color default-color)
+                                classes-nodes
+                                (for [x classes :when (include? x)]
+                                  [(keyword (str "java_" x))
+                                   {:label (short-name x)
+                                    :shape class-shape
+                                    :color color}])]
+                          :when (seq classes-nodes)]
+                      (dot/subgraph (str "cluster_" (safe-name package))
+                                    (cons {:label package-label,
+                                           :color color} classes-nodes)))
+                    (for [x packages :when (include? x)
+                          :let [own (own? x)
+                                package-label (str (if (and abbrev-ns own)
+                                                     (abbrev-name (str x)) x)
+                                                   ".*")
+                                color (if own own-color default-color)]]
+                      [(keyword (str "java_" x))
+                       {:label package-label
+                        :shape class-shape
+                        :color color}]))
+        edges (for [[[from-name from-type] [to-name to-type]] links
+                    :when (and (include? from-name) (include? to-name))]
+                [(keyword (str (if (= from-type :clojure) "clj_" "java_") from-name))
+                 :>
+                 (keyword (str (if (= to-type :clojure) "clj_" "java_") to-name))])]
     (dot/digraph :simple_hierarchy
                  (concat [{:rankdir :LR, :label title}]
                          edges
@@ -220,6 +276,7 @@
   {:abbrev-ns false
    :no-color false
    :only-own false
+   :only-packages false
    :cluster-lang false})
 
 (defn graph-title
@@ -240,8 +297,9 @@
 (defn depgraph*
   "Function that generates a namespace dependency graph given the map of options."
   [opts]
-  (let [{:keys [source-paths format filename debug view include exclude only-own]
-         :as opts} (merge default-boring-opts default-interesting-opts opts)
+  (let [{:keys [source-paths format filename debug view include exclude
+                only-own only-packages] :as opts}
+        (merge default-boring-opts default-interesting-opts opts)
         source-paths (if (coll? source-paths) source-paths [source-paths])
         imgfile (if view
                   (File/createTempFile filename (str "." format))
@@ -251,7 +309,10 @@
                        (not-any? (partial matches? ns) exclude)))
 
         all-files (parse-directories source-paths include?)
-        graph-data (parsed-files->graph-data all-files)
+        all-files (if only-packages
+                    (compress-java-dependencies-to-packages all-files)
+                    all-files)
+        graph-data (parsed-files->graph-data all-files only-packages)
         ;; Set of all processed files is a predicate to check if a file is from
         ;; own project.
         own? (set (map :name all-files))
