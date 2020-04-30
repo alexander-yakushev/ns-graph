@@ -67,8 +67,12 @@
   (loop [[^String line & r] content-lines
          imports []]
     (if line
-      (cond (.startsWith (.trim line) "import")
-            (let [[_ import] (re-find #"import\s+([\w_\.\*]+);" line)]
+      (cond (.startsWith (.trim line) "import static")
+            (when-let [[_ import] (re-find #"import\s+static\s+([\w_\.\*]+)\.(?:[\w_\*]+);" line)]
+              (recur r (conj imports (symbol import))))
+
+            (.startsWith (.trim line) "import")
+            (when-let [[_ import] (re-find #"import\s+([\w_\.\*]+);" line)]
               (recur r (conj imports (symbol import))))
 
             (re-matches #"\s*class\s+[\w_]+" line)
